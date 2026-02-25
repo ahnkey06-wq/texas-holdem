@@ -2649,17 +2649,23 @@
         });
 
         G.playerCount = G.players.length;
-        G.roomRef.child('status').set('playing');
 
         // Sync player assignments so clients know their index
         var assignments = {};
         G.players.forEach(function(p) {
           assignments[p.index] = { name: p.name, oderId: p.oderId };
         });
-        G.roomRef.child('game/assignments').set(assignments);
 
-        listenForActions();
-        startNewHand();
+        // Write assignments FIRST, then set status to 'playing' atomically
+        // This ensures clients can read assignments when they detect status change
+        var updates = {};
+        updates['game/assignments'] = assignments;
+        updates['status'] = 'playing';
+        G.roomRef.update(updates, function() {
+          // After both are written, start the game
+          listenForActions();
+          startNewHand();
+        });
       }
 
       // --- Firebase Sync Functions ---
@@ -2796,11 +2802,18 @@
         G.listeners.push({ ref: sdRef, event: 'value' });
       }
 
-      function initOnlineGameAsClient() {
+      function initOnlineGameAsClient(retryCount) {
+        retryCount = retryCount || 0;
         // Read assignments and settings
         G.roomRef.child('game/assignments').once('value', function(snap) {
           var assignments = snap.val();
-          if (!assignments) return;
+          if (!assignments) {
+            // Assignments may not be written yet, retry up to 5 times
+            if (retryCount < 5) {
+              setTimeout(function() { initOnlineGameAsClient(retryCount + 1); }, 500);
+            }
+            return;
+          }
 
           G.roomRef.child('settings').once('value', function(setSnap) {
             var settings = setSnap.val() || {};
