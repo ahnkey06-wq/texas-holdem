@@ -878,6 +878,57 @@
       .raise-control { gap: 6px; }
       .pot-display { font-size: 0.85rem; }
     }
+    /* ========================================
+       AI Related Styles
+       ======================================== */
+    .ai-badge {
+      display: inline-block;
+      font-size: 0.5rem;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: #8b5cf6;
+      color: white;
+      margin: 2px 1px 0;
+    }
+    .ai-thinking {
+      text-align: center;
+      padding: 12px 16px;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .ai-thinking .dots::after {
+      content: '';
+      animation: aiDots 1.2s steps(4, end) infinite;
+    }
+    @keyframes aiDots {
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+    }
+    .ai-action-toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.85);
+      color: var(--text-primary);
+      padding: 16px 32px;
+      border-radius: var(--radius);
+      font-size: 1.1rem;
+      font-weight: 700;
+      z-index: 300;
+      border: 1px solid rgba(139,92,246,0.4);
+      pointer-events: none;
+      animation: toastFade 1.2s ease forwards;
+    }
+    @keyframes toastFade {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      70% { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -40%) scale(1); }
+    }
   </style>
 </head>
 <body>
@@ -888,11 +939,19 @@
   <div id="setupScreen" class="screen active">
     <div class="setup-logo">
       <h1>TEXAS HOLD'EM</h1>
-      <div class="subtitle">Local Multiplayer Poker</div>
+      <div class="subtitle" id="setupSubtitle">Local Multiplayer Poker</div>
     </div>
 
     <div class="setup-card">
       <div class="setup-section">
+        <div class="setup-label">Game Mode</div>
+        <div class="player-count-btns" id="gameModeBtns">
+          <button class="player-count-btn selected" data-mode="multi">Multiplayer</button>
+          <button class="player-count-btn" data-mode="ai">vs AI</button>
+        </div>
+      </div>
+
+      <div class="setup-section" id="multiSection">
         <div class="setup-label">Players</div>
         <div class="player-count-btns" id="playerCountBtns">
           <button class="player-count-btn" data-count="2">2</button>
@@ -900,6 +959,26 @@
           <button class="player-count-btn" data-count="4">4</button>
           <button class="player-count-btn" data-count="5">5</button>
           <button class="player-count-btn" data-count="6">6</button>
+        </div>
+      </div>
+
+      <div class="setup-section" id="aiCountSection" style="display:none">
+        <div class="setup-label">AI Opponents</div>
+        <div class="player-count-btns" id="aiCountBtns">
+          <button class="player-count-btn" data-aicount="1">1</button>
+          <button class="player-count-btn selected" data-aicount="2">2</button>
+          <button class="player-count-btn" data-aicount="3">3</button>
+          <button class="player-count-btn" data-aicount="4">4</button>
+          <button class="player-count-btn" data-aicount="5">5</button>
+        </div>
+      </div>
+
+      <div class="setup-section" id="aiDiffSection" style="display:none">
+        <div class="setup-label">AI Difficulty</div>
+        <div class="player-count-btns" id="aiDiffBtns">
+          <button class="player-count-btn" data-diff="easy">Easy</button>
+          <button class="player-count-btn selected" data-diff="normal">Normal</button>
+          <button class="player-count-btn" data-diff="hard">Hard</button>
         </div>
       </div>
 
@@ -998,7 +1077,11 @@
         lastAggressorIndex: -1,
         actedCount: 0,
         startingChips: 1000,
-        playerCount: 3
+        playerCount: 3,
+        gameMode: 'multi',  // 'multi' or 'ai'
+        aiCount: 2,
+        aiDifficulty: 'normal', // 'easy', 'normal', 'hard'
+        aiProcessing: false
       };
 
       /* ========================================
@@ -1112,9 +1195,177 @@
       }
 
       /* ========================================
+         AI Decision Engine
+         ======================================== */
+      function getPreflopStrength(holeCards) {
+        var r1 = rankValue(holeCards[0].rank);
+        var r2 = rankValue(holeCards[1].rank);
+        var suited = holeCards[0].suit === holeCards[1].suit;
+        var hi = Math.max(r1, r2);
+        var lo = Math.min(r1, r2);
+        var gap = hi - lo;
+        var strength = 0;
+
+        // Pocket pairs
+        if (r1 === r2) {
+          strength = 0.5 + (r1 / 14) * 0.5; // AA=1.0, 22=0.57
+        } else {
+          strength = (hi + lo) / 28 * 0.6; // Base from high cards
+          if (suited) strength += 0.06;
+          if (gap <= 1) strength += 0.04;
+          if (gap <= 2) strength += 0.02;
+          // Broadway cards bonus
+          if (hi >= 10 && lo >= 10) strength += 0.1;
+          // Ace bonus
+          if (hi === 14) strength += 0.05;
+        }
+        return Math.min(1, Math.max(0, strength));
+      }
+
+      function getPostflopStrength(holeCards, communityCards) {
+        if (communityCards.length === 0) return getPreflopStrength(holeCards);
+        var hand = evaluateHand(holeCards, communityCards);
+        if (!hand) return 0.2;
+        var rank = hand.sc[0]; // Hand rank: 1(high)~10(royal)
+        // Map rank to strength
+        var map = { 1: 0.15, 2: 0.35, 3: 0.5, 4: 0.6, 5: 0.7, 6: 0.75, 7: 0.8, 8: 0.9, 9: 0.95, 10: 1.0 };
+        var base = map[rank] || 0.15;
+        // Within rank, use kicker quality
+        if (hand.sc.length > 1) base += (hand.sc[1] / 14) * 0.05;
+        return Math.min(1, base);
+      }
+
+      function aiDecision(playerIndex) {
+        var p = G.players[playerIndex];
+        var strength = getPostflopStrength(p.holeCards, G.communityCards);
+        var callAmt = getCallAmount(playerIndex);
+        var canCheck = p.currentBet >= G.currentBet;
+        var potOdds = callAmt > 0 ? callAmt / (G.pot + callAmt) : 0;
+        var diff = G.aiDifficulty;
+
+        // Add noise based on difficulty
+        var noise = 0;
+        if (diff === 'easy') noise = (Math.random() - 0.5) * 0.3;
+        else if (diff === 'normal') noise = (Math.random() - 0.5) * 0.15;
+        else noise = (Math.random() - 0.5) * 0.08;
+
+        var adjusted = Math.min(1, Math.max(0, strength + noise));
+
+        // Bluff factor
+        var bluffChance = diff === 'easy' ? 0.03 : diff === 'normal' ? 0.08 : 0.15;
+
+        // Decision logic
+        if (canCheck) {
+          if (adjusted > 0.7) {
+            // Raise with strong hand
+            var raiseSize = computeRaiseSize(adjusted, p);
+            if (raiseSize > 0) return { action: 'raise', amount: raiseSize };
+          }
+          if (adjusted > 0.3 && Math.random() < bluffChance) {
+            var raiseSize = computeRaiseSize(0.5, p);
+            if (raiseSize > 0) return { action: 'raise', amount: raiseSize };
+          }
+          return { action: 'check' };
+        }
+
+        // Facing a bet
+        if (adjusted < 0.2 && callAmt > p.chips * 0.3) {
+          return { action: 'fold' };
+        }
+
+        // Easy: rarely folds
+        if (diff === 'easy') {
+          if (adjusted < 0.12) return { action: 'fold' };
+          if (adjusted > 0.75 && Math.random() > 0.3) {
+            var raiseSize = computeRaiseSize(adjusted, p);
+            if (raiseSize > 0) return { action: 'raise', amount: raiseSize };
+          }
+          return { action: 'call' };
+        }
+
+        // Normal/Hard
+        if (adjusted < potOdds * 0.8) {
+          // Bluff sometimes
+          if (Math.random() < bluffChance && p.chips > callAmt * 3) {
+            var raiseSize = computeRaiseSize(0.5, p);
+            if (raiseSize > 0) return { action: 'raise', amount: raiseSize };
+          }
+          return { action: 'fold' };
+        }
+
+        if (adjusted > 0.7) {
+          var raiseSize = computeRaiseSize(adjusted, p);
+          if (raiseSize > 0) return { action: 'raise', amount: raiseSize };
+        }
+
+        if (adjusted > 0.85 && p.chips < callAmt * 3) {
+          return { action: 'allin' };
+        }
+
+        return { action: 'call' };
+      }
+
+      function computeRaiseSize(strength, p) {
+        if (activePlayers().length <= 1) return 0;
+        var minR = getMinRaise();
+        var maxR = getMaxRaise();
+        if (minR >= maxR) return 0;
+
+        var fraction = 0.3 + strength * 0.5; // 30%~80% of max raise
+        var target = Math.floor(minR + (maxR - minR) * fraction);
+        // Round to big blind
+        target = Math.round(target / G.bigBlind) * G.bigBlind;
+        target = Math.max(target, minR);
+        target = Math.min(target, maxR);
+        return target;
+      }
+
+      function showAiToast(name, action) {
+        var toast = document.createElement('div');
+        toast.className = 'ai-action-toast';
+        toast.textContent = name + ': ' + action;
+        document.body.appendChild(toast);
+        setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 1200);
+      }
+
+      function executeAiTurn(playerIndex) {
+        if (G.aiProcessing) return;
+        G.aiProcessing = true;
+        var p = G.players[playerIndex];
+        var decision = aiDecision(playerIndex);
+        var delay = 600 + Math.floor(Math.random() * 800);
+
+        setTimeout(function() {
+          G.aiProcessing = false;
+          var actionText = '';
+          if (decision.action === 'fold') {
+            doFold(playerIndex);
+            actionText = 'Fold';
+          } else if (decision.action === 'check') {
+            doCheck(playerIndex);
+            actionText = 'Check';
+          } else if (decision.action === 'call') {
+            var amt = getCallAmount(playerIndex);
+            doCall(playerIndex);
+            actionText = 'Call ' + amt;
+          } else if (decision.action === 'raise') {
+            doRaise(playerIndex, decision.amount);
+            actionText = 'Raise ' + decision.amount;
+          } else if (decision.action === 'allin') {
+            doAllIn(playerIndex);
+            actionText = 'All In';
+          }
+
+          showAiToast(p.name, actionText);
+          renderTable();
+          setTimeout(function() { advanceAction(); }, 400);
+        }, delay);
+      }
+
+      /* ========================================
          Player
          ======================================== */
-      function createPlayer(name, index) {
+      function createPlayer(name, index, isAI) {
         return {
           name: name,
           index: index,
@@ -1125,7 +1376,8 @@
           folded: false,
           allIn: false,
           hasActed: false,
-          isEliminated: false
+          isEliminated: false,
+          isAI: !!isAI
         };
       }
 
@@ -1374,15 +1626,32 @@
       /* ========================================
          Game Flow
          ======================================== */
+      var AI_NAMES = ['Ace', 'Maverick', 'Bluff', 'Shark', 'Viper'];
+
       function startNewGame() {
         G.handNumber = 0;
         G.dealerIndex = 0;
         G.players = [];
-        for (var i = 0; i < G.playerCount; i++) {
-          var nameInput = document.getElementById('pname_' + i);
-          var name = nameInput ? nameInput.value.trim() : '';
-          if (!name) name = 'Player ' + (i + 1);
-          G.players.push(createPlayer(name, i));
+        G.aiProcessing = false;
+
+        if (G.gameMode === 'ai') {
+          // Human player first
+          var nameInput = document.getElementById('pname_0');
+          var humanName = nameInput ? nameInput.value.trim() : '';
+          if (!humanName) humanName = 'You';
+          G.players.push(createPlayer(humanName, 0, false));
+          // AI players
+          for (var i = 0; i < G.aiCount; i++) {
+            G.players.push(createPlayer(AI_NAMES[i] || ('Bot ' + (i + 1)), i + 1, true));
+          }
+          G.playerCount = 1 + G.aiCount;
+        } else {
+          for (var i = 0; i < G.playerCount; i++) {
+            var nameInput = document.getElementById('pname_' + i);
+            var name = nameInput ? nameInput.value.trim() : '';
+            if (!name) name = 'Player ' + (i + 1);
+            G.players.push(createPlayer(name, i, false));
+          }
         }
         startNewHand();
       }
@@ -1690,8 +1959,35 @@
 
       function showPrivacyScreen(playerIndex) {
         var p = G.players[playerIndex];
+
+        // In AI mode: skip privacy screen entirely
+        if (G.gameMode === 'ai') {
+          if (p.isAI) {
+            // AI turn: show game screen, execute AI
+            showScreen('gameScreen');
+            renderTable();
+            renderAiThinking(p);
+            executeAiTurn(playerIndex);
+          } else {
+            // Human turn in AI mode: go straight to game screen
+            showScreen('gameScreen');
+            renderTable();
+            renderActionBar();
+          }
+          return;
+        }
+
+        // Multiplayer mode: show privacy screen as before
         document.getElementById('privacyPlayerName').textContent = p.name;
         showScreen('privacyScreen');
+      }
+
+      function renderAiThinking(p) {
+        document.getElementById('actionPlayerInfo').innerHTML =
+          '<strong>' + esc(p.name) + '</strong> (AI)';
+        document.getElementById('actionButtons').innerHTML =
+          '<div class="ai-thinking">Thinking<span class="dots"></span></div>';
+        document.getElementById('raiseControl').style.display = 'none';
       }
 
       function showGameScreen() {
@@ -1744,15 +2040,30 @@
           if (i === sbI && !p.isEliminated) inner += '<span class="badge badge-sb">SB</span>';
           if (i === bbI && !p.isEliminated) inner += '<span class="badge badge-bb">BB</span>';
 
+          // AI badge
+          if (p.isAI) inner += '<span class="ai-badge">AI</span>';
+
           // Cards
           inner += '<div class="player-cards">';
           if (!p.folded && p.holeCards.length === 2) {
-            if (isActive) {
-              inner += renderCardHTML(p.holeCards[0], 'small');
-              inner += renderCardHTML(p.holeCards[1], 'small');
+            if (G.gameMode === 'ai') {
+              // AI mode: always show human cards, always hide AI cards
+              if (!p.isAI) {
+                inner += renderCardHTML(p.holeCards[0], 'small');
+                inner += renderCardHTML(p.holeCards[1], 'small');
+              } else {
+                inner += renderFaceDownHTML('small');
+                inner += renderFaceDownHTML('small');
+              }
             } else {
-              inner += renderFaceDownHTML('small');
-              inner += renderFaceDownHTML('small');
+              // Multiplayer: only show active player's cards
+              if (isActive) {
+                inner += renderCardHTML(p.holeCards[0], 'small');
+                inner += renderCardHTML(p.holeCards[1], 'small');
+              } else {
+                inner += renderFaceDownHTML('small');
+                inner += renderFaceDownHTML('small');
+              }
             }
           }
           inner += '</div>';
@@ -1908,24 +2219,72 @@
       function renderPlayerInputs(count) {
         var list = document.getElementById('playerNamesList');
         list.innerHTML = '';
-        for (var i = 0; i < count; i++) {
+        if (G.gameMode === 'ai') {
+          // Only one input for the human player
           var input = document.createElement('input');
           input.type = 'text';
           input.className = 'player-name-input';
-          input.id = 'pname_' + i;
-          input.placeholder = 'Player ' + (i + 1);
+          input.id = 'pname_0';
+          input.placeholder = 'Your name';
           input.maxLength = 12;
           list.appendChild(input);
+        } else {
+          for (var i = 0; i < count; i++) {
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'player-name-input';
+            input.id = 'pname_' + i;
+            input.placeholder = 'Player ' + (i + 1);
+            input.maxLength = 12;
+            list.appendChild(input);
+          }
         }
       }
 
-      // Player count buttons
-      document.querySelectorAll('.player-count-btn').forEach(function(btn) {
+      function updateSetupUI() {
+        var isAI = G.gameMode === 'ai';
+        document.getElementById('multiSection').style.display = isAI ? 'none' : '';
+        document.getElementById('aiCountSection').style.display = isAI ? '' : 'none';
+        document.getElementById('aiDiffSection').style.display = isAI ? '' : 'none';
+        document.getElementById('setupSubtitle').textContent = isAI ? 'vs AI Poker' : 'Local Multiplayer Poker';
+        renderPlayerInputs(G.playerCount);
+      }
+
+      // Game mode buttons
+      document.querySelectorAll('#gameModeBtns .player-count-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
-          document.querySelectorAll('.player-count-btn').forEach(function(b) { b.classList.remove('selected'); });
+          document.querySelectorAll('#gameModeBtns .player-count-btn').forEach(function(b) { b.classList.remove('selected'); });
+          this.classList.add('selected');
+          G.gameMode = this.getAttribute('data-mode');
+          updateSetupUI();
+        });
+      });
+
+      // Player count buttons (multiplayer)
+      document.querySelectorAll('#playerCountBtns .player-count-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('#playerCountBtns .player-count-btn').forEach(function(b) { b.classList.remove('selected'); });
           this.classList.add('selected');
           G.playerCount = parseInt(this.getAttribute('data-count'));
           renderPlayerInputs(G.playerCount);
+        });
+      });
+
+      // AI count buttons
+      document.querySelectorAll('#aiCountBtns .player-count-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('#aiCountBtns .player-count-btn').forEach(function(b) { b.classList.remove('selected'); });
+          this.classList.add('selected');
+          G.aiCount = parseInt(this.getAttribute('data-aicount'));
+        });
+      });
+
+      // AI difficulty buttons
+      document.querySelectorAll('#aiDiffBtns .player-count-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('#aiDiffBtns .player-count-btn').forEach(function(b) { b.classList.remove('selected'); });
+          this.classList.add('selected');
+          G.aiDifficulty = this.getAttribute('data-diff');
         });
       });
 
