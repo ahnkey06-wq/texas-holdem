@@ -2506,6 +2506,11 @@
             return;
           }
           var data = snap.val();
+          if (data.status === 'abandoned') {
+            errEl.textContent = 'Room has been closed (host left).';
+            errEl.style.display = '';
+            return;
+          }
           if (data.status !== 'waiting') {
             errEl.textContent = 'Game already in progress.';
             errEl.style.display = '';
