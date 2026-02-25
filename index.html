@@ -1247,7 +1247,8 @@
         myPlayerIndex: -1,
         roomRef: null,
         listeners: [],
-        onlinePlayers: {}  // {oderId: {name, joinedAt}} from Firebase
+        onlinePlayers: {},  // {oderId: {name, joinedAt}} from Firebase
+        onlineReady: false
       };
 
       /* ========================================
@@ -2559,6 +2560,7 @@
         G.myPlayerIndex = -1;
         G.listeners = [];
         G.onlinePlayers = {};
+        G.onlineReady = false;
         showScreen('setupScreen');
       }
 
@@ -2817,11 +2819,27 @@
 
             G.playerCount = G.players.length;
             G.phase = PHASES.PREFLOP;
+            G.onlineReady = true;
+
+            // Now that players are set up, read current state and hole cards
+            G.roomRef.child('game/state').once('value', function(stateSnap) {
+              var stateData = stateSnap.val();
+              if (stateData) applyRemoteGameState(stateData);
+            });
+            G.roomRef.child('game/holeCards/' + myOderId).once('value', function(hcSnap) {
+              var cards = hcSnap.val();
+              if (cards && G.myPlayerIndex >= 0 && G.players[G.myPlayerIndex]) {
+                G.players[G.myPlayerIndex].hand = cards;
+                renderTable();
+              }
+            });
           });
         });
       }
 
       function applyRemoteGameState(data) {
+        // Guard: skip if players not yet set up
+        if (!G.onlineReady && !G.isHost) return;
         G.phase = data.phase || PHASES.PREFLOP;
         G.pot = data.pot || 0;
         G.currentBet = data.currentBet || 0;
