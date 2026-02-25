@@ -929,6 +929,79 @@
       70% { opacity: 1; }
       100% { opacity: 0; transform: translate(-50%, -40%) scale(1); }
     }
+
+    /* ========================================
+       Online Multiplayer Styles
+       ======================================== */
+    .room-code-display {
+      font-family: 'Courier New', monospace;
+      font-size: 2.4rem;
+      font-weight: bold;
+      letter-spacing: 8px;
+      text-align: center;
+      color: var(--gold);
+      background: rgba(0,0,0,0.3);
+      border: 2px solid var(--gold);
+      border-radius: var(--radius);
+      padding: 16px;
+      user-select: all;
+    }
+    .lobby-player-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .lobby-player-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+    .lobby-player-item .host-crown {
+      color: var(--gold);
+      font-size: 1rem;
+    }
+    .lobby-player-item .player-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      flex-shrink: 0;
+    }
+    .lobby-player-item .player-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lobby-player-item .you-tag {
+      font-size: 0.7rem;
+      color: var(--gold);
+      border: 1px solid var(--gold);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+    .connection-status {
+      text-align: center;
+      font-size: 0.75rem;
+      margin-top: 12px;
+      color: #888;
+    }
+    .connection-status.connected { color: #4caf50; }
+    .connection-status.disconnected { color: #ff6b6b; }
+    .online-badge {
+      display: inline-block;
+      background: #4caf50;
+      color: #fff;
+      font-size: 0.55rem;
+      font-weight: bold;
+      padding: 1px 4px;
+      border-radius: 3px;
+      margin-left: 2px;
+      vertical-align: middle;
+    }
   </style>
 </head>
 <body>
@@ -948,6 +1021,7 @@
         <div class="player-count-btns" id="gameModeBtns">
           <button class="player-count-btn selected" data-mode="multi">Multiplayer</button>
           <button class="player-count-btn" data-mode="ai">vs AI</button>
+          <button class="player-count-btn" data-mode="online">Online</button>
         </div>
       </div>
 
@@ -987,7 +1061,7 @@
         <div class="player-names-list" id="playerNamesList"></div>
       </div>
 
-      <div class="setup-section">
+      <div class="setup-section" id="chipsSection">
         <div class="setup-label">Starting Chips</div>
         <div class="chips-options" id="chipsOptions">
           <button class="chips-btn" data-chips="500">500</button>
@@ -998,6 +1072,60 @@
       </div>
 
       <button class="btn-start" id="btnStartGame">DEAL CARDS</button>
+    </div>
+  </div>
+
+  <!-- ========================================
+       Online Lobby Screen
+       ======================================== -->
+  <div id="onlineLobbyScreen" class="screen">
+    <div class="setup-logo">
+      <h1>TEXAS HOLD'EM</h1>
+      <div class="subtitle">Online Multiplayer</div>
+    </div>
+    <div class="setup-card" style="max-width:400px">
+      <button class="btn-start" id="btnCreateRoom" style="margin-bottom:20px">CREATE ROOM</button>
+      <div class="setup-section">
+        <div class="setup-label">Join Room</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" class="player-name-input" id="joinRoomCode" placeholder="Room Code" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;text-align:center;font-size:1.2rem;font-weight:bold">
+          <button class="btn-start" id="btnJoinRoom" style="padding:12px 24px;white-space:nowrap">JOIN</button>
+        </div>
+        <div id="joinError" style="color:#ff6b6b;font-size:0.8rem;margin-top:8px;display:none"></div>
+      </div>
+      <button class="btn-new-game" id="btnBackToSetup" style="margin-top:16px;width:100%">Back</button>
+    </div>
+  </div>
+
+  <!-- ========================================
+       Room Lobby Screen
+       ======================================== -->
+  <div id="roomLobbyScreen" class="screen">
+    <div class="setup-logo">
+      <h1>TEXAS HOLD'EM</h1>
+      <div class="subtitle">Waiting Room</div>
+    </div>
+    <div class="setup-card" style="max-width:400px">
+      <div class="setup-section">
+        <div class="setup-label">Room Code</div>
+        <div class="room-code-display" id="roomCodeDisplay"></div>
+        <button class="btn-new-game" id="btnCopyCode" style="margin-top:8px;width:100%;font-size:0.8rem">Copy Code</button>
+      </div>
+      <div class="setup-section">
+        <div class="setup-label">Players <span id="playerCountLabel">(0/6)</span></div>
+        <div id="lobbyPlayerList" class="lobby-player-list"></div>
+      </div>
+      <div class="setup-section" id="lobbySettingsSection">
+        <div class="setup-label">Starting Chips</div>
+        <div class="chips-options" id="lobbyChipsOptions">
+          <button class="chips-btn" data-chips="500">500</button>
+          <button class="chips-btn selected" data-chips="1000">1,000</button>
+          <button class="chips-btn" data-chips="5000">5,000</button>
+          <button class="chips-btn" data-chips="10000">10,000</button>
+        </div>
+      </div>
+      <div id="lobbyActions"></div>
+      <div id="connectionStatus" class="connection-status"></div>
     </div>
   </div>
 
@@ -1046,9 +1174,40 @@
     <div id="showdownContent"></div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
   <script>
     (function() {
       'use strict';
+
+      /* ========================================
+         Firebase Setup
+         ======================================== */
+      var firebaseConfig = {
+        apiKey: "AIzaSyBYelzx94YPCSu9i6ewdvBDCNISoWN2OvA",
+        authDomain: "texas-holdem-poker-e434d.firebaseapp.com",
+        databaseURL: "https://texas-holdem-poker-e434d-default-rtdb.firebaseio.com",
+        projectId: "texas-holdem-poker-e434d",
+        storageBucket: "texas-holdem-poker-e434d.firebasestorage.app",
+        messagingSenderId: "963983936990",
+        appId: "1:963983936990:web:9dd30b5251c9fc334f214f"
+      };
+
+      var db = null;
+      try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+      } catch (e) {
+        console.warn('Firebase init failed:', e);
+      }
+
+      // Client identity (persisted in localStorage)
+      var myOderId = localStorage.getItem('pokerOderId');
+      if (!myOderId) {
+        myOderId = 'id_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
+        localStorage.setItem('pokerOderId', myOderId);
+      }
 
       /* ========================================
          Constants
@@ -1078,10 +1237,17 @@
         actedCount: 0,
         startingChips: 1000,
         playerCount: 3,
-        gameMode: 'multi',  // 'multi' or 'ai'
+        gameMode: 'multi',  // 'multi', 'ai', or 'online'
         aiCount: 2,
         aiDifficulty: 'normal', // 'easy', 'normal', 'hard'
-        aiProcessing: false
+        aiProcessing: false,
+        // Online multiplayer
+        onlineRoomCode: null,
+        isHost: false,
+        myPlayerIndex: -1,
+        roomRef: null,
+        listeners: [],
+        onlinePlayers: {}  // {oderId: {name, joinedAt}} from Firebase
       };
 
       /* ========================================
@@ -1365,7 +1531,7 @@
       /* ========================================
          Player
          ======================================== */
-      function createPlayer(name, index, isAI) {
+      function createPlayer(name, index, isAI, oderId) {
         return {
           name: name,
           index: index,
@@ -1377,7 +1543,8 @@
           allIn: false,
           hasActed: false,
           isEliminated: false,
-          isAI: !!isAI
+          isAI: !!isAI,
+          oderId: oderId || null
         };
       }
 
@@ -1634,6 +1801,9 @@
         G.players = [];
         G.aiProcessing = false;
 
+        // Online mode is handled by startOnlineGame()
+        if (G.gameMode === 'online') return;
+
         if (G.gameMode === 'ai') {
           // Human player first
           var nameInput = document.getElementById('pname_0');
@@ -1687,6 +1857,13 @@
         postBlinds();
         updateGameHeader();
 
+        // Online: sync hole cards and game state
+        if (G.gameMode === 'online' && G.isHost) {
+          if (G.roomRef) G.roomRef.child('game/showdown').remove();
+          syncHoleCards();
+          syncGameState();
+        }
+
         // Check if only one active player (everyone else all-in from blinds)
         if (activePlayers().length <= 1 && playersInHand().length > 1) {
           runOutBoard();
@@ -1726,10 +1903,12 @@
 
         resetBettingRound();
 
+        // Online: sync community cards
+        if (G.gameMode === 'online' && G.isHost) syncGameState();
+
         // First to act post-flop: first active after dealer
         var firstIdx = nextPlayerIndex(G.dealerIndex);
         if (firstIdx === -1) {
-          // All players all-in, run out the board
           if (G.phase !== PHASES.RIVER) {
             runOutBoard();
           } else {
@@ -1759,6 +1938,7 @@
           G.communityCards.push(G.deck.pop());
         }
         G.phase = PHASES.SHOWDOWN;
+        if (G.gameMode === 'online' && G.isHost) syncGameState();
         goToShowdown();
       }
 
@@ -1778,6 +1958,11 @@
         html += renderShowdownActions();
         document.getElementById('showdownContent').innerHTML = html;
         bindShowdownActions();
+
+        if (G.gameMode === 'online' && G.isHost) {
+          syncGameState();
+          syncAutoWin(winner.index, html);
+        }
       }
 
       function goToShowdown() {
@@ -1841,6 +2026,11 @@
         html += renderShowdownActions();
         document.getElementById('showdownContent').innerHTML = html;
         bindShowdownActions();
+
+        if (G.gameMode === 'online' && G.isHost) {
+          syncGameState();
+          syncShowdown(html);
+        }
       }
 
       function renderChipsSummary() {
@@ -1888,7 +2078,11 @@
         var btnNew = document.getElementById('btnNewGame');
         if (btnNew) {
           btnNew.addEventListener('click', function() {
-            showScreen('setupScreen');
+            if (G.gameMode === 'online') {
+              leaveRoom();
+            } else {
+              showScreen('setupScreen');
+            }
           });
         }
       }
@@ -1960,16 +2154,30 @@
       function showPrivacyScreen(playerIndex) {
         var p = G.players[playerIndex];
 
+        // Online mode: no privacy screen, each player on own device
+        if (G.gameMode === 'online') {
+          if (G.isHost) {
+            showScreen('gameScreen');
+            renderTable();
+            syncGameState();
+            if (p.oderId === myOderId) {
+              renderActionBar();
+            } else {
+              renderWaitingBar();
+            }
+          }
+          // Non-host clients update via Firebase listener
+          return;
+        }
+
         // In AI mode: skip privacy screen entirely
         if (G.gameMode === 'ai') {
           if (p.isAI) {
-            // AI turn: show game screen, execute AI
             showScreen('gameScreen');
             renderTable();
             renderAiThinking(p);
             executeAiTurn(playerIndex);
           } else {
-            // Human turn in AI mode: go straight to game screen
             showScreen('gameScreen');
             renderTable();
             renderActionBar();
@@ -2046,8 +2254,16 @@
           // Cards
           inner += '<div class="player-cards">';
           if (!p.folded && p.holeCards.length === 2) {
-            if (G.gameMode === 'ai') {
-              // AI mode: always show human cards, always hide AI cards
+            if (G.gameMode === 'online') {
+              // Online: show only my cards face-up
+              if (i === G.myPlayerIndex) {
+                inner += renderCardHTML(p.holeCards[0], 'small');
+                inner += renderCardHTML(p.holeCards[1], 'small');
+              } else {
+                inner += renderFaceDownHTML('small');
+                inner += renderFaceDownHTML('small');
+              }
+            } else if (G.gameMode === 'ai') {
               if (!p.isAI) {
                 inner += renderCardHTML(p.holeCards[0], 'small');
                 inner += renderCardHTML(p.holeCards[1], 'small');
@@ -2056,7 +2272,6 @@
                 inner += renderFaceDownHTML('small');
               }
             } else {
-              // Multiplayer: only show active player's cards
               if (isActive) {
                 inner += renderCardHTML(p.holeCards[0], 'small');
                 inner += renderCardHTML(p.holeCards[1], 'small');
@@ -2125,27 +2340,33 @@
         document.getElementById('raiseControl').style.display = 'none';
 
         // Bind actions
-        document.getElementById('abFold').addEventListener('click', function() {
-          doFold(G.activePlayerIndex);
+        var isOnlineNonHost = G.gameMode === 'online' && !G.isHost;
+
+        function doLocalAction(actionFn) {
+          actionFn();
           renderTable();
+          if (G.gameMode === 'online') syncGameState();
           setTimeout(function() { advanceAction(); }, 200);
+        }
+
+        document.getElementById('abFold').addEventListener('click', function() {
+          if (isOnlineNonHost) { submitOnlineAction('fold'); renderWaitingBar(); return; }
+          doLocalAction(function() { doFold(G.activePlayerIndex); });
         });
 
         var btnCheck = document.getElementById('abCheck');
         if (btnCheck) {
           btnCheck.addEventListener('click', function() {
-            doCheck(G.activePlayerIndex);
-            renderTable();
-            setTimeout(function() { advanceAction(); }, 200);
+            if (isOnlineNonHost) { submitOnlineAction('check'); renderWaitingBar(); return; }
+            doLocalAction(function() { doCheck(G.activePlayerIndex); });
           });
         }
 
         var btnCall = document.getElementById('abCall');
         if (btnCall) {
           btnCall.addEventListener('click', function() {
-            doCall(G.activePlayerIndex);
-            renderTable();
-            setTimeout(function() { advanceAction(); }, 200);
+            if (isOnlineNonHost) { submitOnlineAction('call'); renderWaitingBar(); return; }
+            doLocalAction(function() { doCall(G.activePlayerIndex); });
           });
         }
 
@@ -2157,9 +2378,8 @@
         }
 
         document.getElementById('abAllIn').addEventListener('click', function() {
-          doAllIn(G.activePlayerIndex);
-          renderTable();
-          setTimeout(function() { advanceAction(); }, 200);
+          if (isOnlineNonHost) { submitOnlineAction('allin'); renderWaitingBar(); return; }
+          doLocalAction(function() { doAllIn(G.activePlayerIndex); });
         });
       }
 
@@ -2206,11 +2426,526 @@
 
         document.getElementById('raiseConfirm').addEventListener('click', function() {
           var totalBet = parseInt(slider.value);
-          doRaise(G.activePlayerIndex, totalBet);
           rc.style.display = 'none';
-          renderTable();
-          setTimeout(function() { advanceAction(); }, 200);
+          if (G.gameMode === 'online' && !G.isHost) {
+            submitOnlineAction('raise', totalBet);
+            renderWaitingBar();
+          } else {
+            doRaise(G.activePlayerIndex, totalBet);
+            renderTable();
+            if (G.gameMode === 'online') syncGameState();
+            setTimeout(function() { advanceAction(); }, 200);
+          }
         });
+      }
+
+      /* ========================================
+         Online Multiplayer
+         ======================================== */
+
+      function generateRoomCode() {
+        var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        var code = '';
+        for (var i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+        return code;
+      }
+
+      function showOnlineLobby() {
+        if (!db) { alert('Firebase not initialized. Check your config.'); return; }
+        var nameInput = document.getElementById('pname_0');
+        var myName = nameInput ? nameInput.value.trim() : '';
+        if (!myName) myName = 'Player';
+        G.myName = myName;
+        showScreen('onlineLobbyScreen');
+      }
+
+      function createRoom() {
+        var code = generateRoomCode();
+        var roomRef = db.ref('rooms/' + code);
+
+        roomRef.once('value', function(snap) {
+          if (snap.exists()) { createRoom(); return; } // retry on collision
+
+          G.onlineRoomCode = code;
+          G.isHost = true;
+          G.roomRef = roomRef;
+          G.myPlayerIndex = -1;
+
+          var roomData = {
+            host: myOderId,
+            status: 'waiting',
+            settings: { startingChips: G.startingChips, smallBlind: 10, bigBlind: 20 }
+          };
+          roomRef.set(roomData);
+          roomRef.child('players/' + myOderId).set({ name: G.myName, joinedAt: firebase.database.ServerValue.TIMESTAMP });
+          roomRef.child('players/' + myOderId).onDisconnect().remove();
+          roomRef.child('status').onDisconnect().set('abandoned');
+
+          showRoomLobby();
+          listenToPlayerList();
+          setupPresence();
+        });
+      }
+
+      function joinRoom() {
+        var codeInput = document.getElementById('joinRoomCode');
+        var code = codeInput ? codeInput.value.trim().toUpperCase() : '';
+        var errEl = document.getElementById('joinError');
+
+        if (code.length !== 6) {
+          errEl.textContent = 'Please enter a 6-character room code.';
+          errEl.style.display = '';
+          return;
+        }
+
+        var roomRef = db.ref('rooms/' + code);
+        roomRef.once('value', function(snap) {
+          if (!snap.exists()) {
+            errEl.textContent = 'Room not found.';
+            errEl.style.display = '';
+            return;
+          }
+          var data = snap.val();
+          if (data.status !== 'waiting') {
+            errEl.textContent = 'Game already in progress.';
+            errEl.style.display = '';
+            return;
+          }
+          var playerCount = data.players ? Object.keys(data.players).length : 0;
+          if (playerCount >= 6) {
+            errEl.textContent = 'Room is full (6/6).';
+            errEl.style.display = '';
+            return;
+          }
+
+          errEl.style.display = 'none';
+          G.onlineRoomCode = code;
+          G.isHost = false;
+          G.roomRef = roomRef;
+          G.myPlayerIndex = -1;
+          G.startingChips = (data.settings && data.settings.startingChips) || 1000;
+
+          roomRef.child('players/' + myOderId).set({ name: G.myName, joinedAt: firebase.database.ServerValue.TIMESTAMP });
+          roomRef.child('players/' + myOderId).onDisconnect().remove();
+
+          showRoomLobby();
+          listenToPlayerList();
+          listenToRoom();
+          setupPresence();
+        });
+      }
+
+      function leaveRoom() {
+        cleanupListeners();
+        if (G.roomRef) {
+          G.roomRef.child('players/' + myOderId).remove();
+          if (G.isHost) {
+            // Check if any other players left
+            G.roomRef.child('players').once('value', function(snap) {
+              if (!snap.exists() || Object.keys(snap.val()).length === 0) {
+                G.roomRef.remove();
+              }
+            });
+          }
+        }
+        G.onlineRoomCode = null;
+        G.isHost = false;
+        G.roomRef = null;
+        G.myPlayerIndex = -1;
+        G.listeners = [];
+        G.onlinePlayers = {};
+        showScreen('setupScreen');
+      }
+
+      function showRoomLobby() {
+        showScreen('roomLobbyScreen');
+        document.getElementById('roomCodeDisplay').textContent = G.onlineRoomCode;
+        document.getElementById('lobbySettingsSection').style.display = G.isHost ? '' : 'none';
+        renderLobbyActions();
+      }
+
+      function renderLobbyActions() {
+        var html = '';
+        if (G.isHost) {
+          var count = G.onlinePlayers ? Object.keys(G.onlinePlayers).length : 0;
+          html += '<button class="btn-start" id="btnStartOnline" ' + (count < 2 ? 'disabled style="opacity:0.5"' : '') + '>START GAME</button>';
+        } else {
+          html += '<div class="ai-thinking" style="justify-content:center;padding:16px">Waiting for host to start<span class="dots"></span></div>';
+        }
+        html += '<button class="btn-new-game" id="btnLeaveRoom" style="margin-top:12px;width:100%">Leave Room</button>';
+        document.getElementById('lobbyActions').innerHTML = html;
+
+        var btnStart = document.getElementById('btnStartOnline');
+        if (btnStart) {
+          btnStart.addEventListener('click', function() { startOnlineGame(); });
+        }
+        document.getElementById('btnLeaveRoom').addEventListener('click', function() { leaveRoom(); });
+      }
+
+      function renderLobbyPlayers() {
+        var el = document.getElementById('lobbyPlayerList');
+        var players = G.onlinePlayers || {};
+        var keys = Object.keys(players);
+        var html = '';
+        var hostId = null;
+
+        if (G.roomRef) {
+          // We stored host in room creation
+        }
+
+        keys.forEach(function(oderId) {
+          var p = players[oderId];
+          var isMe = oderId === myOderId;
+          var isHost = G.isHost && isMe || (!G.isHost && keys.indexOf(oderId) === 0);
+          html += '<div class="lobby-player-item">';
+          html += '<div class="player-dot"></div>';
+          html += '<span class="player-label">' + esc(p.name) + '</span>';
+          if (isMe) html += '<span class="you-tag">YOU</span>';
+          html += '</div>';
+        });
+
+        if (keys.length === 0) html = '<div style="text-align:center;color:#888;padding:8px">No players yet...</div>';
+        el.innerHTML = html;
+
+        document.getElementById('playerCountLabel').textContent = '(' + keys.length + '/6)';
+        renderLobbyActions();
+      }
+
+      function startOnlineGame() {
+        if (!G.isHost || !G.roomRef) return;
+        var players = G.onlinePlayers;
+        var keys = Object.keys(players);
+        if (keys.length < 2) return;
+
+        // Read chips setting from lobby
+        var selectedChip = document.querySelector('#lobbyChipsOptions .chips-btn.selected');
+        if (selectedChip) G.startingChips = parseInt(selectedChip.getAttribute('data-chips'));
+
+        // Update settings in Firebase
+        G.roomRef.child('settings').update({
+          startingChips: G.startingChips,
+          smallBlind: 10,
+          bigBlind: 20
+        });
+
+        // Create players in order
+        G.players = [];
+        G.handNumber = 0;
+        G.dealerIndex = 0;
+        G.aiProcessing = false;
+        G.gameMode = 'online';
+
+        keys.forEach(function(oderId, idx) {
+          var p = createPlayer(players[oderId].name, idx, false, oderId);
+          G.players.push(p);
+          if (oderId === myOderId) G.myPlayerIndex = idx;
+        });
+
+        G.playerCount = G.players.length;
+        G.roomRef.child('status').set('playing');
+
+        // Sync player assignments so clients know their index
+        var assignments = {};
+        G.players.forEach(function(p) {
+          assignments[p.index] = { name: p.name, oderId: p.oderId };
+        });
+        G.roomRef.child('game/assignments').set(assignments);
+
+        listenForActions();
+        startNewHand();
+      }
+
+      // --- Firebase Sync Functions ---
+
+      function syncGameState() {
+        if (!G.isHost || !G.roomRef) return;
+        var gameState = {
+          phase: G.phase,
+          pot: G.pot,
+          currentBet: G.currentBet,
+          dealerIndex: G.dealerIndex,
+          activePlayerIndex: G.activePlayerIndex,
+          handNumber: G.handNumber,
+          minRaiseAmount: G.minRaiseAmount,
+          lastAggressorIndex: G.lastAggressorIndex,
+          smallBlind: G.smallBlind,
+          bigBlind: G.bigBlind,
+          communityCards: G.communityCards,
+          playerStates: {}
+        };
+        G.players.forEach(function(p) {
+          gameState.playerStates[p.index] = {
+            name: p.name,
+            chips: p.chips,
+            currentBet: p.currentBet,
+            totalBetThisHand: p.totalBetThisHand,
+            folded: p.folded,
+            allIn: p.allIn,
+            hasActed: p.hasActed,
+            isEliminated: p.isEliminated,
+            oderId: p.oderId
+          };
+        });
+        G.roomRef.child('game/state').set(gameState);
+      }
+
+      function syncHoleCards() {
+        if (!G.isHost || !G.roomRef) return;
+        G.players.forEach(function(p) {
+          if (p.holeCards && p.holeCards.length === 2 && p.oderId) {
+            G.roomRef.child('game/holeCards/' + p.oderId).set(p.holeCards);
+          }
+        });
+      }
+
+      function syncShowdown(showdownHTML) {
+        if (!G.isHost || !G.roomRef) return;
+        // Gather all hole cards for reveal
+        var reveals = {};
+        G.players.forEach(function(p) {
+          if (!p.isEliminated && p.holeCards && p.holeCards.length === 2) {
+            reveals[p.index] = p.holeCards;
+          }
+        });
+        G.roomRef.child('game/showdown').set({
+          html: showdownHTML,
+          reveals: reveals,
+          phase: 'showdown'
+        });
+      }
+
+      function syncAutoWin(winnerIdx, winHTML) {
+        if (!G.isHost || !G.roomRef) return;
+        G.roomRef.child('game/showdown').set({
+          html: winHTML,
+          reveals: {},
+          phase: 'autowin'
+        });
+        syncGameState();
+      }
+
+      // --- Firebase Listeners ---
+
+      function listenToPlayerList() {
+        if (!G.roomRef) return;
+        var playersRef = G.roomRef.child('players');
+        var listener = playersRef.on('value', function(snapshot) {
+          G.onlinePlayers = snapshot.val() || {};
+          renderLobbyPlayers();
+        });
+        G.listeners.push({ ref: playersRef, event: 'value', fn: listener });
+      }
+
+      function listenToRoom() {
+        if (!G.roomRef) return;
+
+        // Listen for game start + status changes
+        var statusRef = G.roomRef.child('status');
+        statusRef.on('value', function(snap) {
+          var status = snap.val();
+          if (status === 'playing' && !G.isHost && G.phase === PHASES.SETUP) {
+            initOnlineGameAsClient();
+          }
+          if (status === 'abandoned' && !G.isHost) {
+            alert('Host disconnected. Returning to menu.');
+            leaveRoom();
+          }
+        });
+        G.listeners.push({ ref: statusRef, event: 'value' });
+
+        // Listen for game state updates
+        var stateRef = G.roomRef.child('game/state');
+        stateRef.on('value', function(snap) {
+          if (G.isHost) return;
+          var data = snap.val();
+          if (!data) return;
+          applyRemoteGameState(data);
+        });
+        G.listeners.push({ ref: stateRef, event: 'value' });
+
+        // Listen for own hole cards
+        var hcRef = G.roomRef.child('game/holeCards/' + myOderId);
+        hcRef.on('value', function(snap) {
+          var cards = snap.val();
+          if (cards && G.myPlayerIndex >= 0 && G.players[G.myPlayerIndex]) {
+            G.players[G.myPlayerIndex].holeCards = cards;
+            if (G.phase !== PHASES.SETUP && G.phase !== PHASES.SHOWDOWN) {
+              renderTable();
+              if (G.activePlayerIndex === G.myPlayerIndex) renderActionBar();
+            }
+          }
+        });
+        G.listeners.push({ ref: hcRef, event: 'value' });
+
+        // Listen for showdown
+        var sdRef = G.roomRef.child('game/showdown');
+        sdRef.on('value', function(snap) {
+          if (G.isHost) return;
+          var data = snap.val();
+          if (data && data.html) {
+            renderOnlineShowdown(data);
+          }
+        });
+        G.listeners.push({ ref: sdRef, event: 'value' });
+      }
+
+      function initOnlineGameAsClient() {
+        // Read assignments and settings
+        G.roomRef.child('game/assignments').once('value', function(snap) {
+          var assignments = snap.val();
+          if (!assignments) return;
+
+          G.roomRef.child('settings').once('value', function(setSnap) {
+            var settings = setSnap.val() || {};
+            G.startingChips = settings.startingChips || 1000;
+            G.smallBlind = settings.smallBlind || 10;
+            G.bigBlind = settings.bigBlind || 20;
+            G.gameMode = 'online';
+            G.players = [];
+
+            Object.keys(assignments).forEach(function(idx) {
+              var a = assignments[idx];
+              var p = createPlayer(a.name, parseInt(idx), false, a.oderId);
+              G.players.push(p);
+              if (a.oderId === myOderId) G.myPlayerIndex = parseInt(idx);
+            });
+
+            G.playerCount = G.players.length;
+            G.phase = PHASES.PREFLOP;
+          });
+        });
+      }
+
+      function applyRemoteGameState(data) {
+        G.phase = data.phase || PHASES.PREFLOP;
+        G.pot = data.pot || 0;
+        G.currentBet = data.currentBet || 0;
+        G.dealerIndex = data.dealerIndex || 0;
+        G.activePlayerIndex = data.activePlayerIndex || 0;
+        G.handNumber = data.handNumber || 0;
+        G.minRaiseAmount = data.minRaiseAmount || 0;
+        G.lastAggressorIndex = data.lastAggressorIndex != null ? data.lastAggressorIndex : -1;
+        G.smallBlind = data.smallBlind || 10;
+        G.bigBlind = data.bigBlind || 20;
+        G.communityCards = data.communityCards || [];
+
+        // Update player states (but keep our own holeCards)
+        if (data.playerStates) {
+          Object.keys(data.playerStates).forEach(function(idx) {
+            var ps = data.playerStates[idx];
+            var i = parseInt(idx);
+            if (!G.players[i]) return;
+            G.players[i].chips = ps.chips;
+            G.players[i].currentBet = ps.currentBet;
+            G.players[i].totalBetThisHand = ps.totalBetThisHand;
+            G.players[i].folded = ps.folded;
+            G.players[i].allIn = ps.allIn;
+            G.players[i].hasActed = ps.hasActed;
+            G.players[i].isEliminated = ps.isEliminated;
+            if (ps.oderId) G.players[i].oderId = ps.oderId;
+            if (ps.oderId === myOderId) G.myPlayerIndex = i;
+          });
+        }
+
+        showScreen('gameScreen');
+        updateGameHeader();
+        renderTable();
+
+        if (G.phase !== PHASES.SHOWDOWN) {
+          if (G.activePlayerIndex === G.myPlayerIndex) {
+            renderActionBar();
+          } else {
+            renderWaitingBar();
+          }
+        }
+      }
+
+      function listenForActions() {
+        if (!G.isHost || !G.roomRef) return;
+        var actionRef = G.roomRef.child('action');
+        actionRef.on('value', function(snap) {
+          var action = snap.val();
+          if (!action || !action.type) return;
+
+          var activePlayer = G.players[G.activePlayerIndex];
+          if (!activePlayer || action.oderId !== activePlayer.oderId) return;
+
+          actionRef.remove();
+          processOnlineAction(action);
+        });
+        G.listeners.push({ ref: actionRef, event: 'value' });
+      }
+
+      function processOnlineAction(action) {
+        var idx = G.activePlayerIndex;
+        switch (action.type) {
+          case 'fold': doFold(idx); break;
+          case 'check': doCheck(idx); break;
+          case 'call': doCall(idx); break;
+          case 'raise': doRaise(idx, action.amount); break;
+          case 'allin': doAllIn(idx); break;
+        }
+        renderTable();
+        syncGameState();
+        setTimeout(function() { advanceAction(); }, 300);
+      }
+
+      function submitOnlineAction(actionType, amount) {
+        if (!G.roomRef) return;
+        G.roomRef.child('action').set({
+          oderId: myOderId,
+          type: actionType,
+          amount: amount || 0,
+          timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+      }
+
+      // --- UI helpers for online mode ---
+
+      function renderWaitingBar() {
+        var activeP = G.players[G.activePlayerIndex];
+        var name = activeP ? activeP.name : '...';
+        document.getElementById('actionPlayerInfo').innerHTML =
+          'Waiting for <strong>' + esc(name) + '</strong>...';
+        document.getElementById('actionButtons').innerHTML =
+          '<div class="ai-thinking" style="justify-content:center">Waiting<span class="dots"></span></div>';
+        document.getElementById('raiseControl').style.display = 'none';
+      }
+
+      function renderOnlineShowdown(data) {
+        showScreen('showdownScreen');
+        var html = data.html || '';
+        // For non-host: replace action buttons with waiting or next-hand logic
+        if (!G.isHost) {
+          html = html.replace(/<button[^>]*id="btnNextHand"[^>]*>[^<]*<\/button>/g,
+            '<div class="ai-thinking" style="justify-content:center;padding:8px">Waiting for next hand<span class="dots"></span></div>');
+          html = html.replace(/<button[^>]*id="btnNewGame"[^>]*>[^<]*<\/button>/g, '');
+        }
+        document.getElementById('showdownContent').innerHTML = html;
+        if (G.isHost) bindShowdownActions();
+      }
+
+      // --- Connection Management ---
+
+      function setupPresence() {
+        if (!db) return;
+        var connRef = db.ref('.info/connected');
+        connRef.on('value', function(snap) {
+          var statusEl = document.getElementById('connectionStatus');
+          if (!statusEl) return;
+          if (snap.val() === true) {
+            statusEl.textContent = 'Connected';
+            statusEl.className = 'connection-status connected';
+          } else {
+            statusEl.textContent = 'Disconnected';
+            statusEl.className = 'connection-status disconnected';
+          }
+        });
+      }
+
+      function cleanupListeners() {
+        G.listeners.forEach(function(l) { l.ref.off(l.event); });
+        G.listeners = [];
       }
 
       /* ========================================
@@ -2219,7 +2954,15 @@
       function renderPlayerInputs(count) {
         var list = document.getElementById('playerNamesList');
         list.innerHTML = '';
-        if (G.gameMode === 'ai') {
+        if (G.gameMode === 'online') {
+          var input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'player-name-input';
+          input.id = 'pname_0';
+          input.placeholder = 'Your name';
+          input.maxLength = 12;
+          list.appendChild(input);
+        } else if (G.gameMode === 'ai') {
           // Only one input for the human player
           var input = document.createElement('input');
           input.type = 'text';
@@ -2243,10 +2986,13 @@
 
       function updateSetupUI() {
         var isAI = G.gameMode === 'ai';
-        document.getElementById('multiSection').style.display = isAI ? 'none' : '';
+        var isOnline = G.gameMode === 'online';
+        document.getElementById('multiSection').style.display = (isAI || isOnline) ? 'none' : '';
         document.getElementById('aiCountSection').style.display = isAI ? '' : 'none';
         document.getElementById('aiDiffSection').style.display = isAI ? '' : 'none';
-        document.getElementById('setupSubtitle').textContent = isAI ? 'vs AI Poker' : 'Local Multiplayer Poker';
+        document.getElementById('chipsSection').style.display = isOnline ? 'none' : '';
+        document.getElementById('setupSubtitle').textContent = isOnline ? 'Online Multiplayer Poker' : (isAI ? 'vs AI Poker' : 'Local Multiplayer Poker');
+        document.getElementById('btnStartGame').textContent = isOnline ? 'CONTINUE' : 'DEAL CARDS';
         renderPlayerInputs(G.playerCount);
       }
 
@@ -2299,12 +3045,45 @@
 
       // Start game
       document.getElementById('btnStartGame').addEventListener('click', function() {
-        startNewGame();
+        if (G.gameMode === 'online') {
+          showOnlineLobby();
+        } else {
+          startNewGame();
+        }
       });
 
       // Ready button
       document.getElementById('btnReady').addEventListener('click', function() {
         showGameScreen();
+      });
+
+      // Online lobby buttons
+      document.getElementById('btnCreateRoom').addEventListener('click', function() {
+        createRoom();
+      });
+      document.getElementById('btnJoinRoom').addEventListener('click', function() {
+        joinRoom();
+      });
+      document.getElementById('btnBackToSetup').addEventListener('click', function() {
+        showScreen('setupScreen');
+      });
+      document.getElementById('btnCopyCode').addEventListener('click', function() {
+        var code = G.onlineRoomCode || '';
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(code);
+          this.textContent = 'Copied!';
+          var btn = this;
+          setTimeout(function() { btn.textContent = 'Copy Code'; }, 1500);
+        }
+      });
+
+      // Lobby chips buttons
+      document.querySelectorAll('#lobbyChipsOptions .chips-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('#lobbyChipsOptions .chips-btn').forEach(function(b) { b.classList.remove('selected'); });
+          this.classList.add('selected');
+          G.startingChips = parseInt(this.getAttribute('data-chips'));
+        });
       });
 
       // Init
