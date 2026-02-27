@@ -505,9 +505,34 @@
       font-size: 0.65rem;
       line-height: 1;
     }
-    .card .suit-center {
-      font-size: 1.8rem;
+    .card-pips {
+      position: absolute;
+      top: 22%;
+      bottom: 22%;
+      left: 12%;
+      right: 12%;
+    }
+    .pip {
+      position: absolute;
+      font-size: 0.85rem;
       line-height: 1;
+      transform: translate(-50%, -50%);
+    }
+    .pip.inverted {
+      transform: translate(-50%, -50%) rotate(180deg);
+    }
+    .pip.ace-pip {
+      font-size: 2.2rem;
+      transform: translate(-50%, -50%);
+    }
+    .pip.face-pip {
+      font-size: 1.6rem;
+      font-weight: bold;
+      transform: translate(-50%, -50%);
+    }
+    .pip.face-suit {
+      font-size: 1rem;
+      transform: translate(-50%, -50%);
     }
     .card .rank-br {
       position: absolute;
@@ -529,15 +554,21 @@
 
     .card.small .rank-tl { font-size: 0.66rem; top: 2px; left: 3px; }
     .card.small .suit-tl { font-size: 0.54rem; top: 12px; left: 3px; }
-    .card.small .suit-center { font-size: 1.32rem; }
     .card.small .rank-br { font-size: 0.66rem; bottom: 2px; right: 3px; }
     .card.small .suit-br { font-size: 0.54rem; bottom: 12px; right: 3px; }
+    .card.small .pip { font-size: 0.5rem; }
+    .card.small .pip.ace-pip { font-size: 1.3rem; }
+    .card.small .pip.face-pip { font-size: 1rem; }
+    .card.small .pip.face-suit { font-size: 0.6rem; }
 
     .card.medium .rank-tl { font-size: 0.65rem; }
     .card.medium .suit-tl { font-size: 0.55rem; top: 13px; }
-    .card.medium .suit-center { font-size: 1.4rem; }
     .card.medium .rank-br { font-size: 0.65rem; }
     .card.medium .suit-br { font-size: 0.55rem; bottom: 13px; }
+    .card.medium .pip { font-size: 0.65rem; }
+    .card.medium .pip.ace-pip { font-size: 1.7rem; }
+    .card.medium .pip.face-pip { font-size: 1.3rem; }
+    .card.medium .pip.face-suit { font-size: 0.75rem; }
 
     .card.red { color: var(--suit-red); }
     .card.black { color: var(--suit-black); }
@@ -2143,18 +2174,48 @@
         return d.innerHTML;
       }
 
+      var PIP_POSITIONS = {
+        2:  [[50,15],[50,85]],
+        3:  [[50,15],[50,50],[50,85]],
+        4:  [[30,15],[70,15],[30,85],[70,85]],
+        5:  [[30,15],[70,15],[50,50],[30,85],[70,85]],
+        6:  [[30,15],[70,15],[30,50],[70,50],[30,85],[70,85]],
+        7:  [[30,15],[70,15],[50,33],[30,50],[70,50],[30,85],[70,85]],
+        8:  [[30,15],[70,15],[50,33],[30,50],[70,50],[50,67],[30,85],[70,85]],
+        9:  [[30,15],[70,15],[30,37],[70,37],[50,50],[30,63],[70,63],[30,85],[70,85]],
+        10: [[30,15],[70,15],[50,27],[30,39],[70,39],[30,61],[70,61],[50,73],[30,85],[70,85]]
+      };
+
       function renderCardHTML(card, sizeClass) {
         if (!card) return '';
         var color = (card.suit === 'hearts' || card.suit === 'diamonds') ? 'red' : 'black';
         var sym = SUIT_SYMBOLS[card.suit];
         var cls = 'card ' + color + (sizeClass ? ' ' + sizeClass : '');
-        return '<div class="' + cls + '">' +
-          '<span class="rank-tl">' + card.rank + '</span>' +
-          '<span class="suit-tl">' + sym + '</span>' +
-          '<span class="suit-center">' + sym + '</span>' +
-          '<span class="rank-br">' + card.rank + '</span>' +
-          '<span class="suit-br">' + sym + '</span>' +
-          '</div>';
+        var html = '<div class="' + cls + '">';
+        html += '<span class="rank-tl">' + card.rank + '</span>';
+        html += '<span class="suit-tl">' + sym + '</span>';
+        html += '<div class="card-pips">';
+        var rank = card.rank;
+        if (rank === 'A') {
+          html += '<span class="pip ace-pip" style="left:50%;top:50%">' + sym + '</span>';
+        } else if (rank === 'J' || rank === 'Q' || rank === 'K') {
+          html += '<span class="pip face-pip" style="left:50%;top:40%">' + rank + '</span>';
+          html += '<span class="pip face-suit" style="left:50%;top:70%">' + sym + '</span>';
+        } else {
+          var n = parseInt(rank);
+          var positions = PIP_POSITIONS[n];
+          if (positions) {
+            for (var i = 0; i < positions.length; i++) {
+              var inv = positions[i][1] > 55 ? ' inverted' : '';
+              html += '<span class="pip' + inv + '" style="left:' + positions[i][0] + '%;top:' + positions[i][1] + '%">' + sym + '</span>';
+            }
+          }
+        }
+        html += '</div>';
+        html += '<span class="rank-br">' + card.rank + '</span>';
+        html += '<span class="suit-br">' + sym + '</span>';
+        html += '</div>';
+        return html;
       }
 
       function renderFaceDownHTML(sizeClass) {
