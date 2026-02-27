@@ -489,6 +489,10 @@
       width: calc(var(--card-width) * 0.78);
       height: calc(var(--card-height) * 0.78);
     }
+    .card.mycard {
+      width: calc(var(--card-width) * 1.2);
+      height: calc(var(--card-height) * 1.2);
+    }
 
     .card .rank-tl {
       position: absolute;
@@ -569,6 +573,15 @@
     .card.medium .pip.ace-pip { font-size: 1.7rem; }
     .card.medium .pip.face-pip { font-size: 1.3rem; }
     .card.medium .pip.face-suit { font-size: 0.75rem; }
+
+    .card.mycard .rank-tl { font-size: 1rem; top: 4px; left: 6px; }
+    .card.mycard .suit-tl { font-size: 0.85rem; top: 18px; left: 6px; }
+    .card.mycard .rank-br { font-size: 1rem; bottom: 4px; right: 6px; }
+    .card.mycard .suit-br { font-size: 0.85rem; bottom: 18px; right: 6px; }
+    .card.mycard .pip { font-size: 1.1rem; }
+    .card.mycard .pip.ace-pip { font-size: 2.8rem; }
+    .card.mycard .pip.face-pip { font-size: 2rem; }
+    .card.mycard .pip.face-suit { font-size: 1.2rem; }
 
     .card.red { color: var(--suit-red); }
     .card.black { color: var(--suit-black); }
@@ -2328,29 +2341,35 @@
           if (p.isAI) inner += '<span class="ai-badge">AI</span>';
 
           // Cards
+          var isMyCards = false;
+          if (G.gameMode === 'online') { isMyCards = (i === G.myPlayerIndex); }
+          else if (G.gameMode === 'ai') { isMyCards = !p.isAI; }
+          else { isMyCards = isActive; }
+          var mySize = isMyCards ? 'mycard' : 'small';
+
           inner += '<div class="player-cards">';
           if (!p.folded && p.holeCards.length === 2) {
             if (G.gameMode === 'online') {
               // Online: show only my cards face-up
               if (i === G.myPlayerIndex) {
-                inner += renderCardHTML(p.holeCards[0], 'small');
-                inner += renderCardHTML(p.holeCards[1], 'small');
+                inner += renderCardHTML(p.holeCards[0], mySize);
+                inner += renderCardHTML(p.holeCards[1], mySize);
               } else {
                 inner += renderFaceDownHTML('small');
                 inner += renderFaceDownHTML('small');
               }
             } else if (G.gameMode === 'ai') {
               if (!p.isAI) {
-                inner += renderCardHTML(p.holeCards[0], 'small');
-                inner += renderCardHTML(p.holeCards[1], 'small');
+                inner += renderCardHTML(p.holeCards[0], mySize);
+                inner += renderCardHTML(p.holeCards[1], mySize);
               } else {
                 inner += renderFaceDownHTML('small');
                 inner += renderFaceDownHTML('small');
               }
             } else {
               if (isActive) {
-                inner += renderCardHTML(p.holeCards[0], 'small');
-                inner += renderCardHTML(p.holeCards[1], 'small');
+                inner += renderCardHTML(p.holeCards[0], mySize);
+                inner += renderCardHTML(p.holeCards[1], mySize);
               } else {
                 inner += renderFaceDownHTML('small');
                 inner += renderFaceDownHTML('small');
