@@ -301,6 +301,21 @@
     }
     .game-header .hand-info { color: var(--text-secondary); }
     .game-header .blind-info { color: var(--accent-gold); font-weight: 600; }
+    .bgm-toggle {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 50%;
+      width: 34px;
+      height: 34px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+      padding: 0;
+    }
+    .bgm-toggle:hover { background: rgba(255,255,255,0.25); }
 
     .table-area {
       flex: 1;
@@ -1205,6 +1220,7 @@
   <div id="gameScreen" class="screen">
     <div class="game-header">
       <span class="hand-info" id="handInfo">Hand #1</span>
+      <button class="bgm-toggle" id="bgmToggle" onclick="toggleBGM()">🎵</button>
       <span class="blind-info" id="blindInfo">Blinds 10/20</span>
     </div>
 
@@ -2235,9 +2251,110 @@
         return '<div class="card face-down' + (sizeClass ? ' ' + sizeClass : '') + '"></div>';
       }
 
+      /* ======== Background Music (Web Audio API Jazz Lounge) ======== */
+      var bgm = { ctx: null, gain: null, playing: false, muted: false, timer: null };
+
+      function playPad(freq, start, dur) {
+        var o = bgm.ctx.createOscillator();
+        var g = bgm.ctx.createGain();
+        var f = bgm.ctx.createBiquadFilter();
+        o.type = 'sawtooth';
+        o.frequency.value = freq;
+        f.type = 'lowpass'; f.frequency.value = 500; f.Q.value = 0.5;
+        g.gain.setValueAtTime(0, start);
+        g.gain.linearRampToValueAtTime(0.035, start + 0.6);
+        g.gain.setValueAtTime(0.035, start + dur - 0.6);
+        g.gain.linearRampToValueAtTime(0, start + dur);
+        o.connect(f); f.connect(g); g.connect(bgm.gain);
+        o.start(start); o.stop(start + dur);
+      }
+
+      function playBass(freq, start, dur) {
+        var o = bgm.ctx.createOscillator();
+        var g = bgm.ctx.createGain();
+        var f = bgm.ctx.createBiquadFilter();
+        o.type = 'sine';
+        o.frequency.value = freq;
+        f.type = 'lowpass'; f.frequency.value = 280;
+        g.gain.setValueAtTime(0, start);
+        g.gain.linearRampToValueAtTime(0.12, start + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+        o.connect(f); f.connect(g); g.connect(bgm.gain);
+        o.start(start); o.stop(start + dur);
+      }
+
+      function playBrush(start) {
+        var bufSize = bgm.ctx.sampleRate * 0.06;
+        var buf = bgm.ctx.createBuffer(1, bufSize, bgm.ctx.sampleRate);
+        var data = buf.getChannelData(0);
+        for (var i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+        var src = bgm.ctx.createBufferSource();
+        var g = bgm.ctx.createGain();
+        var f = bgm.ctx.createBiquadFilter();
+        src.buffer = buf;
+        f.type = 'bandpass'; f.frequency.value = 4000; f.Q.value = 0.8;
+        g.gain.setValueAtTime(0.06, start);
+        g.gain.exponentialRampToValueAtTime(0.001, start + 0.06);
+        src.connect(f); f.connect(g); g.connect(bgm.gain);
+        src.start(start); src.stop(start + 0.08);
+      }
+
+      function scheduleBGMLoop() {
+        if (!bgm.playing) return;
+        var t = bgm.ctx.currentTime + 0.1;
+        var beat = 0.55;
+        var bar = beat * 4;
+        // Jazz: Dm9 → G13 → Cmaj9 → Am9
+        var chords = [
+          [146.83, 174.61, 220.00, 261.63, 329.63],
+          [196.00, 246.94, 293.66, 349.23, 440.00],
+          [130.81, 164.81, 196.00, 246.94, 293.66],
+          [110.00, 130.81, 164.81, 196.00, 246.94]
+        ];
+        var bassRoot = [73.42, 98.00, 65.41, 55.00];
+        var walkRatios = [1, 1.122, 1.26, 1.335];
+        for (var i = 0; i < 4; i++) {
+          var bs = t + i * bar;
+          chords[i].forEach(function(freq) { playPad(freq, bs, bar); });
+          for (var b = 0; b < 4; b++) {
+            playBass(bassRoot[i] * walkRatios[b], bs + b * beat, beat * 0.8);
+            if (b === 0 || b === 2) playBrush(bs + b * beat);
+            if (b === 1 || b === 3) playBrush(bs + b * beat + beat * 0.5);
+          }
+        }
+        bgm.timer = setTimeout(scheduleBGMLoop, bar * 4 * 1000 - 300);
+      }
+
+      function startBGM() {
+        if (!bgm.ctx) {
+          bgm.ctx = new (window.AudioContext || window.webkitAudioContext)();
+          bgm.gain = bgm.ctx.createGain();
+          bgm.gain.gain.value = bgm.muted ? 0 : 0.18;
+          bgm.gain.connect(bgm.ctx.destination);
+        }
+        if (bgm.ctx.state === 'suspended') bgm.ctx.resume();
+        if (bgm.playing) return;
+        bgm.playing = true;
+        scheduleBGMLoop();
+      }
+
+      function stopBGM() {
+        bgm.playing = false;
+        if (bgm.timer) { clearTimeout(bgm.timer); bgm.timer = null; }
+      }
+
+      function toggleBGM() {
+        bgm.muted = !bgm.muted;
+        if (bgm.gain) bgm.gain.gain.value = bgm.muted ? 0 : 0.18;
+        var btn = document.getElementById('bgmToggle');
+        if (btn) btn.textContent = bgm.muted ? '🔇' : '🎵';
+      }
+
       function showScreen(id) {
         document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
         document.getElementById(id).classList.add('active');
+        if (id === 'gameScreen') { startBGM(); }
+        else if (id === 'setupScreen') { stopBGM(); }
       }
 
       function showPrivacyScreen(playerIndex) {
