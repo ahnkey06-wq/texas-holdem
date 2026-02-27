@@ -99,12 +99,25 @@
     }
 
     .setup-card {
-      background: var(--bg-panel);
+      background: url('https://images.unsplash.com/photo-1516726817505-f5ed825624d8?w=600&q=80') center top / cover no-repeat;
       border-radius: var(--radius);
       padding: 28px;
       width: 100%;
       max-width: 480px;
       border: 1px solid rgba(255,255,255,0.06);
+      position: relative;
+    }
+    .setup-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(210, 190, 170, 0.75);
+      border-radius: var(--radius);
+      z-index: 0;
+    }
+    .setup-card > * {
+      position: relative;
+      z-index: 1;
     }
 
     .setup-section {
@@ -1016,7 +1029,6 @@
       <h1>HK's HOLD'EM</h1>
       <div class="subtitle" id="setupSubtitle">Local Multiplayer Poker</div>
     </div>
-
     <div class="setup-card">
       <div class="setup-section">
         <div class="setup-label">Game Mode</div>
